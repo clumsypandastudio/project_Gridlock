@@ -90,17 +90,18 @@ FGameAction UAIPlayer::ChooseTicketToRideTurn(const FBoardState& State, const FR
 		return Personality.ScoreNoise > 0.0f ? Personality.ScoreNoise * Scale * Random.FRandRange(-1.0f, 1.0f) : 0.0f;
 	};
 
-	// The routes my unfinished Route cards still need.
+	// The routes my unfinished Route cards still need (by the cheapest way round what the opponent holds).
 	TSet<FName> Needed;
-	bool bAllDone = true;
 	for (const FName CardId : Me.Hand)
 	{
-		if (!URulesLibrary::IsCardComplete(State, Context, Player, CardId))
+		if (!URulesLibrary::IsCardComplete(State, Context, Player, CardId) && URulesLibrary::CanStillComplete(State, Context, Player, CardId))
 		{
-			bAllDone = false;
 			Needed.Append(FAIScoring::NeededRoutesForCard(State, Context, Player, CardId));
 		}
 	}
+	const bool bAllDone = URulesLibrary::AreCardsDone(State, Context, Player);
+	// Stuck: unfinished cards with no way left to finish them, so no new cards either. Score routes instead.
+	const bool bStuck = !bAllDone && Needed.IsEmpty();
 	const bool bLastTurns = State.FinalTurnsLeft >= 0 || Me.Trains <= Tuning.FinalRoundTrains + 4;
 
 	// Lots (v0.7). A Lot off the deck: keep it when a needed route still has room for it.
@@ -148,7 +149,7 @@ FGameAction UAIPlayer::ChooseTicketToRideTurn(const FBoardState& State, const FR
 		float BestScore = -MAX_flt;
 		for (const FGameAction& Action : Legal)
 		{
-			if (Action.Type != EGridlockActionType::ClaimRoute || (!Needed.Contains(Action.RouteId) && !bLastTurns))
+			if (Action.Type != EGridlockActionType::ClaimRoute || (!Needed.Contains(Action.RouteId) && !bLastTurns && !bStuck))
 			{
 				continue;
 			}
@@ -159,14 +160,14 @@ FGameAction UAIPlayer::ChooseTicketToRideTurn(const FBoardState& State, const FR
 				Best = &Action;
 			}
 		}
-		if (Best && (BestScore > Base || bLastTurns))
+		if (Best && (BestScore > Base || bLastTurns || bStuck))
 		{
 			return *Best;
 		}
 
-		// 2. Route cards: all mine are done and there are trains enough to chase more.
+		// 2. Route cards: all mine are done (the only time new ones can be drawn) and some trains are left to use.
 		const FGameAction* DrawCards = Legal.FindByPredicate([](const FGameAction& Action) { return Action.Type == EGridlockActionType::DrawCards; });
-		if (DrawCards && bAllDone && !bLastTurns && Me.Trains >= 12)
+		if (DrawCards && bAllDone && !bLastTurns && Me.Trains >= 7)
 		{
 			return *DrawCards;
 		}

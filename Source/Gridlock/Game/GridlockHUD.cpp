@@ -481,6 +481,11 @@ void AGridlockHUD::DrawBanner(const FDrawFrame& Frame)
 		Headline = State.Winner == INDEX_NONE ? FString(TEXT("Game over: a draw."))
 			: Frame.AI && State.Winner == Frame.Human ? FString(TEXT("You win!"))
 			: FString::Printf(TEXT("%s wins."), *PlayerLabel(Frame, State.Winner));
+		if (const AGridlockGameMode* Mode = GetWorld()->GetAuthGameMode<AGridlockGameMode>())
+		{
+			const int32 Seconds = FMath::RoundToInt(Mode->GetGameSeconds());
+			Headline += FString::Printf(TEXT("  Game time %d:%02d."), Seconds / 60, Seconds % 60);
+		}
 		Headline += TEXT("  Click New game to play again.");
 		Color = GridlockBoard::PlayerColor(State.Winner);
 	}
@@ -1307,7 +1312,8 @@ void AGridlockHUD::DrawHelp(const FDrawFrame& Frame)
 					Tuning.TicketCost, Tuning.GetFaceUpPrice(EGridlockColor::Wild))
 				: FString(TEXT("1. Take 2 tickets: from the 5 face-up ones (click, or keys 1-5) or from the deck (T). A face-up Wild counts as both.")), false },
 			{ TEXT("2. Claim a route: click it, choose the tickets (its color, any ONE color on gray, Wilds stand in for any), then Build."), false },
-			{ FString::Printf(TEXT("3. Draw %d Route cards (D) and keep at least %d."), Tuning.DrawCount, Tuning.MinKeep), false },
+			{ FString::Printf(TEXT("3. Draw %d Route cards (D) and keep at least %d%s."), Tuning.DrawCount, Tuning.MinKeep,
+				Tuning.bDrawOnlyWhenCardsDone ? TEXT(": only once all of yours are finished") : TEXT("")), false },
 			{ Tuning.TicketCost > 0 && Tuning.bUnlimitedCash ? FString(TEXT("   Money: unlimited for now. The panel shows how much each player has spent."))
 				: Tuning.TicketCost > 0 ? FString::Printf(TEXT("   Money: you start with $%d, and there's no other income yet."), Tuning.StartCashFirstPlayer)
 				: FString(), false },

@@ -193,6 +193,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ticket to Ride|City Properties")
 	bool bCityTollOnCardPaths = false;
 
+	/** v0.8: new Route cards only once all of yours are finished. Stuck on one? Find another way round. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ticket to Ride")
+	bool bDrawOnlyWhenCardsDone = false;
+
 	/** A face-up Wild's price; 0 = the same as any ticket. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ticket to Ride", meta = (ClampMin = "0"))
 	int32 FaceUpWildPrice = 0;

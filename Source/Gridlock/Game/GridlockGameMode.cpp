@@ -77,6 +77,8 @@ void AGridlockGameMode::BeginPlay()
 		AIPlayer->Personality = Builder;
 	}
 
+	GameStartTime = GetWorld()->GetRealTimeSeconds();
+	GameEndTime = -1.0;
 	Match->StartMatch(Scenario, FMath::Rand());
 	SpawnLightingIfMissing();
 	SpawnBoard();
@@ -128,6 +130,8 @@ void AGridlockGameMode::NewGame()
 		bAIStepPending = false;
 		bAutoSkipPending = false;
 		AddNotice(TEXT("New game."));
+		GameStartTime = GetWorld()->GetRealTimeSeconds();
+		GameEndTime = -1.0;
 		Match->StartMatch(ActiveScenario, FMath::Rand());
 	}
 }
@@ -429,8 +433,25 @@ void AGridlockGameMode::HandleStateChanged()
 	{
 		Property->OnSlotChanged(State.Slots.FindRef(Property->RouteId));
 	}
+
+	// The game clock stops at the end (and starts again if an undo takes the game back).
+	if (State.Phase == EGridlockPhase::GameOver && GameEndTime < 0.0)
+	{
+		GameEndTime = GetWorld()->GetRealTimeSeconds();
+		const int32 Seconds = FMath::RoundToInt(GameEndTime - GameStartTime);
+		AddNotice(FString::Printf(TEXT("Game time: %d:%02d (%d rounds)"), Seconds / 60, Seconds % 60, State.Round));
+	}
+	else if (State.Phase != EGridlockPhase::GameOver)
+	{
+		GameEndTime = -1.0;
+	}
 	UpdateHighlights(State, Match->GetContext());
 	ScheduleAITurn();
+}
+
+double AGridlockGameMode::GetGameSeconds() const
+{
+	return (GameEndTime >= 0.0 ? GameEndTime : GetWorld()->GetRealTimeSeconds()) - GameStartTime;
 }
 
 #if !UE_BUILD_SHIPPING

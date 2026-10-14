@@ -893,6 +893,11 @@ bool URulesLibrary::IsLegal(const FBoardState& State, const FGameAction& Action,
 			OutReason = FText::Format(LOCTEXT("HandFull", "Your hand is full: you can hold at most {0} unfinished cards."), FText::AsNumber(Tuning.HandLimit));
 			return false;
 		}
+		if (Tuning.bDrawOnlyWhenCardsDone && !AreCardsDone(State, Context, Action.Player))
+		{
+			OutReason = LOCTEXT("FinishCardsFirst", "Finish all your Route cards first: new ones come only once every card you hold is done.");
+			return false;
+		}
 		if (State.BuysThisTurn > 0)
 		{
 			OutReason = Tuning.bClassicTurn ? LOCTEXT("TookInsteadOfDraw", "You've taken a ticket: take your second one.")
@@ -1006,6 +1011,11 @@ bool URulesLibrary::IsLegal(const FBoardState& State, const FGameAction& Action,
 		if (const int32* CityOwner = State.CityOwner.Find(Action.RouteId))
 		{
 			OutReason = *CityOwner == Action.Player ? LOCTEXT("CityYours", "You already own this city.") : LOCTEXT("CityTheirs", "Your opponent already owns this city.");
+			return false;
+		}
+		if (State.BuysThisTurn > 0)
+		{
+			OutReason = LOCTEXT("PropertyWholeTurn", "Buying a property is a whole turn: you've already taken a ticket this turn.");
 			return false;
 		}
 		if (!GridlockRulesPrivate::HasRouteInto(State, Context, Action.Player, Action.RouteId))
@@ -1823,6 +1833,42 @@ bool URulesLibrary::IsRouteSevered(const FBoardState& State, FName RouteId, int3
 {
 	const FSlotState* Slot = State.Slots.Find(RouteId);
 	return Slot && Slot->Owner != INDEX_NONE && Slot->Owner != ForPlayer && Slot->Tier >= EPropertyTier::Complex;
+}
+
+bool URulesLibrary::CanStillComplete(const FBoardState& State, const FRulesContext& Context, int32 Player, FName CardId)
+{
+	const FRouteCardDef* Card = Context.Deck ? Context.Deck->FindCard(CardId) : nullptr;
+	if (!Card || !Context.Map)
+	{
+		return false;
+	}
+	auto CanUse = [&State, &Context, Player](const FRouteDef& Route)
+	{
+		const int32 RouteOwner = State.RouteOwner.FindRef(Route.Id);
+		if (RouteOwner == Player)
+		{
+			return !IsRouteSevered(State, Route.Id, Player);
+		}
+		return RouteOwner == INDEX_NONE && GetRouteBlocker(State, Context, Route.Id) != GridlockRulesPrivate::Opponent(Player);
+	};
+	return FGridlockPathfinding::ShortestDistance(*Context.Map, Card->CityA, Card->CityB, CanUse) != INDEX_NONE;
+}
+
+bool URulesLibrary::AreCardsDone(const FBoardState& State, const FRulesContext& Context, int32 Player)
+{
+	if (!State.Players.IsValidIndex(Player))
+	{
+		return false;
+	}
+	// No way out: a card that can't be finished any more still has to be (by another way round), or no new cards.
+	for (const FName CardId : State.Players[Player].Hand)
+	{
+		if (!IsCardComplete(State, Context, Player, CardId))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool URulesLibrary::IsCardComplete(const FBoardState& State, const FRulesContext& Context, int32 Player, FName CardId)

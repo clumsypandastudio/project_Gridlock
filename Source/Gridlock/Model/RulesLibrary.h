@@ -76,6 +76,12 @@ public:
 	/** True when an opponent's working Complex or Landmark sits on the route. */
 	static bool IsRouteSevered(const FBoardState& State, FName RouteId, int32 ForPlayer);
 
+	/** Whether the card can still be finished: a path over the player's own routes and open routes not blocked against them. */
+	static bool CanStillComplete(const FBoardState& State, const FRulesContext& Context, int32 Player, FName CardId);
+
+	/** v0.8: every Route card in hand is finished (only then may new ones be drawn). */
+	static bool AreCardsDone(const FBoardState& State, const FRulesContext& Context, int32 Player);
+
 	/** Whether the card's two cities are joined by the player's own, unsevered routes. */
 	static bool IsCardComplete(const FBoardState& State, const FRulesContext& Context, int32 Player, FName CardId);
 

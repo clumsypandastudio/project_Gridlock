@@ -128,6 +128,7 @@ void UTuningData::ApplyRulesV08()
 	CityPropertyPrice = 10;
 	CityToll = 3;                  // each time they build a route into your city
 	bCityTollOnCardPaths = true;   // and at the end, for each finished Route card whose path visits it
+	bDrawOnlyWhenCardsDone = true; // new Route cards only once all yours are finished
 }
 
 int32 UTuningData::GetLotSlots(int32 Length) const

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
@@ -55,6 +55,9 @@ public:
 	/** Notices since the last call; the HUD takes them each frame. */
 	TArray<FString> TakeNotices();
 
+	/** How long this game has lasted in real seconds; it stops when the game ends. */
+	double GetGameSeconds() const;
+
 	UFUNCTION(BlueprintPure, Category = "Gridlock")
 	UAIPlayer* GetAIPlayer() const { return AIPlayer; }
 
@@ -80,6 +83,10 @@ protected:
 	void HandleStateChanged();
 
 private:
+	/** Real time the current game started, and ended (-1 while it's still going). */
+	double GameStartTime = 0.0;
+	double GameEndTime = -1.0;
+
 	/** Starts the AI's next move after AIMoveDelay, if it's the AI's turn. */
 	void ScheduleAITurn();
 	void RunAIStep();

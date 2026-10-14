@@ -722,6 +722,33 @@ bool FGridlockTtRCityPropertiesTest::RunTest(const FString& Parameters)
 		return Event.Type == EGridlockEventType::CityTollPaid && Event.Player == Them && Event.CardId == TEXT("C13") && Event.RouteId == TEXT("Pinecrest");
 	}));
 	TestEqual(TEXT("$6 earned in all"), State.Players[Me].Earned, 6);
+
+	// A property is a whole turn: not after taking a ticket.
+	FBoardState Ticket = Fixture.StartGame(42);
+	const int32 Buyer = Ticket.ActivePlayer;
+	Ticket.RouteOwner[TEXT("R04")] = Buyer;
+	Fixture.Do(Ticket, EGridlockActionType::BuyTicket);
+	if (!Ticket.Players[Buyer].bLotPending && Ticket.ActivePlayer == Buyer)
+	{
+		TestFalse(TEXT("No property after a ticket"), Fixture.IsLegal(Ticket, FFixture::Make(EGridlockActionType::BuyCityProperty, Buyer, TEXT("Highcliff"))));
+	}
+
+	// New Route cards only once all yours are finished, or can't be finished any more.
+	FBoardState Cards = Fixture.StartGame(43);
+	const int32 Holder = Cards.ActivePlayer;
+	Cards.Players[Holder].Hand = { TEXT("C13") }; // Westport - Highcliff
+	TestFalse(TEXT("No drawing with an unfinished card"), Fixture.IsLegal(Cards, FFixture::Make(EGridlockActionType::DrawCards, Holder)));
+	FBoardState Done = Cards;
+	Done.RouteOwner[TEXT("R01")] = Holder;
+	Done.RouteOwner[TEXT("R04")] = Holder;
+	TestTrue(TEXT("Drawing once it's finished"), Fixture.IsLegal(Done, FFixture::Make(EGridlockActionType::DrawCards, Holder)));
+	FBoardState Stuck = Cards;
+	for (const FName RouteId : { FName(TEXT("R01")), FName(TEXT("R02")), FName(TEXT("R03")) }) // every way out of Westport
+	{
+		Stuck.RouteOwner[RouteId] = 1 - Holder;
+	}
+	TestFalse(TEXT("The card can't be finished any more"), URulesLibrary::CanStillComplete(Stuck, Fixture.Context, Holder, TEXT("C13")));
+	TestFalse(TEXT("...and still no drawing: no way out"), Fixture.IsLegal(Stuck, FFixture::Make(EGridlockActionType::DrawCards, Holder)));
 	return true;
 }
 
@@ -741,6 +768,9 @@ bool FGridlockTtRCityPlayoutTest::RunTest(const FString& Parameters)
 	int32 TollCash = 0;
 	int32 Rounds = 0;
 	int32 Profit = 0;
+	int32 CardsFinished = 0;
+	int32 CardsFailed = 0;
+	int32 LeastFinished = MAX_int32;
 	for (int32 Seed = 1; Seed <= 115; Seed = Seed == 15 ? 101 : Seed + 1)
 	{
 		const bool bAI = Seed > 100;
@@ -778,10 +808,18 @@ bool FGridlockTtRCityPlayoutTest::RunTest(const FString& Parameters)
 		{
 			Rounds += State.Round;
 			Profit += State.Players[0].Earned - State.Players[0].Spent + State.Players[1].Earned - State.Players[1].Spent;
+			for (const FPlayerData& Player : State.Players)
+			{
+				CardsFinished += Player.Completed.Num();
+				CardsFailed += Player.Hand.Num();
+				LeastFinished = FMath::Min(LeastFinished, Player.Completed.Num());
+			}
 		}
 	}
 	AddInfo(FString::Printf(TEXT("TTR CITIES (AI vs AI, 15 games): %.1f properties bought, %.1f tolls ($%.1f) per game, %.1f rounds, profit $%.1f per player"),
 		Bought / 15.0f, Tolls / 15.0f, TollCash / 15.0f, Rounds / 15.0f, Profit / 30.0f));
+	AddInfo(FString::Printf(TEXT("TTR CITIES Route cards per player: %.1f finished, %.1f unfinished (fewest finished in a game: %d)"),
+		CardsFinished / 30.0f, CardsFailed / 30.0f, LeastFinished));
 	return true;
 }
 
