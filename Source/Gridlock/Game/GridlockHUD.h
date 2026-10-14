@@ -36,6 +36,10 @@ public:
 	bool IsHelpOpen() const { return bHelpOpen; }
 	void SetHelpOpen(bool bOpen) { bHelpOpen = bOpen; }
 
+	/** The end-of-game results window (opens by itself when the game ends). */
+	bool IsResultsOpen() const { return bResultsOpen; }
+	void SetResultsOpen(bool bOpen) { bResultsOpen = bOpen; }
+
 private:
 	UFUNCTION()
 	void HandleGameEvent(const FGameEvent& Event);
@@ -61,6 +65,12 @@ private:
 
 	/** v0.7: you drew a Lot from the deck: keep it (paying the rest) or discard it. */
 	void DrawLotPopup(const FDrawFrame& Frame);
+
+	/** End of the game: the time, and each player side by side: points, Route cards, cities and money. */
+	void DrawResults(const FDrawFrame& Frame);
+
+	/** One player's column in the results window; returns its height. */
+	float DrawResultsColumn(const FDrawFrame& Frame, int32 Player, float X, float Y, float Width);
 
 	/** v0.8: the clicked city: buy its property (ends your turn), or why you can't. */
 	void DrawCityPopup(const FDrawFrame& Frame);
@@ -131,4 +141,6 @@ private:
 	TArray<FButtonRect> Buttons;
 	TMap<FName, FVector2D> CityScreen;
 	bool bHelpOpen = true;
+	bool bResultsOpen = false;
+	bool bResultsShown = false; // opened once for this game already
 };

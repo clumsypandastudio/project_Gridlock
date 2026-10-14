@@ -260,6 +260,13 @@ void AGridlockPlayerController::PressButton(FName ButtonId)
 	else if (ButtonId == TEXT("PlaceLotHere")) { Send(EGridlockActionType::PlaceRouteLot, BuildRoute); }
 	else if (ButtonId == TEXT("BuyCity"))      { const FName City = CityChoice; CityChoice = NAME_None; Send(EGridlockActionType::BuyCityProperty, City); }
 	else if (ButtonId == TEXT("CityCancel"))   { CityChoice = NAME_None; }
+	else if (ButtonId == TEXT("ResultsOpen") || ButtonId == TEXT("ResultsClose"))
+	{
+		if (AGridlockHUD* HUD = GetGridlockHUD())
+		{
+			HUD->SetResultsOpen(ButtonId == TEXT("ResultsOpen"));
+		}
+	}
 	else if (ButtonId == BuildCancel)  { HandleCancel(); }
 	else if (ButtonId == WildLess)     { ChangeBuildWilds(-1); }
 	else if (ButtonId == WildMore)     { ChangeBuildWilds(1); }
@@ -482,6 +489,12 @@ void AGridlockPlayerController::HandleEnter()
 
 void AGridlockPlayerController::HandleCancel()
 {
+	AGridlockHUD* HUD = GetGridlockHUD();
+	if (HUD && HUD->IsResultsOpen())
+	{
+		HUD->SetResultsOpen(false);
+		return;
+	}
 	const UMatchSubsystem* Match = GetMatch();
 	if (Match && Match->GetState().Players.IsValidIndex(GetActingPlayer()) && Match->GetState().Players[GetActingPlayer()].bLotPending)
 	{

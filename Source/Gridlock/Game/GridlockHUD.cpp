@@ -241,6 +241,23 @@ void AGridlockHUD::DrawHUD()
 		DrawTooltip(Frame);
 	}
 
+	// The results window opens by itself once per game, when it ends.
+	if (State.Phase == EGridlockPhase::GameOver && !bResultsShown)
+	{
+		bResultsShown = true;
+		bResultsOpen = true;
+	}
+	else if (State.Phase != EGridlockPhase::GameOver)
+	{
+		bResultsShown = false;
+		bResultsOpen = false;
+	}
+	if (bResultsOpen && State.Phase == EGridlockPhase::GameOver)
+	{
+		Buttons.Reset(); // the window's own buttons only
+		DrawResults(Frame);
+	}
+
 	if (bHelpOpen)
 	{
 		Buttons.Reset(); // while help is up, a click only closes it
@@ -313,6 +330,165 @@ TArray<FString> AGridlockHUD::DescribeCity(const FDrawFrame& Frame, FName CityId
 		? FString::Printf(TEXT("Click: buy its property for $%d (ends your turn)"), Tuning.CityPropertyPrice)
 		: FString::Printf(TEXT("Can't buy it: %s"), *Reason.ToString()));
 	return Lines;
+}
+
+void AGridlockHUD::DrawResults(const FDrawFrame& Frame)
+{
+	const FBoardState& State = *Frame.State;
+	const float BoxWidth = FMath::Min(1040.0f, Canvas->ClipX - 40.0f);
+	const float BoxHeight = Canvas->ClipY - 80.0f;
+	const float X = (Canvas->ClipX - BoxWidth) * 0.5f;
+	const float Y = 40.0f;
+	DrawRect(FLinearColor(0.01f, 0.01f, 0.03f, 0.97f), X, Y, BoxWidth, BoxHeight);
+	DrawOutline(X, Y, BoxWidth, BoxHeight, GridlockBoard::Clickable, 2.0f);
+
+	// Who won, by how much, and how long it took.
+	const FString Winner = State.Winner == INDEX_NONE ? FString(TEXT("A draw"))
+		: Frame.AI && State.Winner == Frame.Human ? FString(TEXT("You win!")) : FString::Printf(TEXT("%s wins"), *PlayerLabel(Frame, State.Winner));
+	const FString Score = State.Players.Num() == 2 ? FString::Printf(TEXT("  %d to %d"),
+		FMath::Max(State.Players[0].Points, State.Players[1].Points), FMath::Min(State.Players[0].Points, State.Players[1].Points)) : FString();
+	DrawTextShadowed(Winner + Score, State.Winner == INDEX_NONE ? GridlockBoard::Clickable : GridlockBoard::PlayerColor(State.Winner), X + 24.0f, Y + 16.0f, GEngine->GetLargeFont(), 1.2f);
+	FString Time;
+	if (const AGridlockGameMode* Mode = GetWorld()->GetAuthGameMode<AGridlockGameMode>())
+	{
+		const int32 Seconds = FMath::RoundToInt(Mode->GetGameSeconds());
+		Time = FString::Printf(TEXT("Game time %d:%02d   %d rounds"), Seconds / 60, Seconds % 60, State.Round);
+	}
+	DrawTextShadowed(Time, GridlockHUDPrivate::Plain, X + 24.0f, Y + 50.0f, GEngine->GetMediumFont());
+
+	// You on the left, the opponent on the right (in hot-seat: player 1 left, player 2 right).
+	const int32 Left = Frame.AI ? Frame.Human : 0;
+	const float ColumnWidth = (BoxWidth - 72.0f) * 0.5f;
+	DrawResultsColumn(Frame, Left, X + 24.0f, Y + 86.0f, ColumnWidth);
+	DrawLine(X + BoxWidth * 0.5f, Y + 86.0f, X + BoxWidth * 0.5f, Y + BoxHeight - 70.0f, FLinearColor(1.0f, 1.0f, 1.0f, 0.2f), 1.0f);
+	DrawResultsColumn(Frame, 1 - Left, X + BoxWidth * 0.5f + 24.0f, Y + 86.0f, ColumnWidth);
+
+	const float ButtonWidth = 220.0f;
+	DrawButton(Frame, TEXT("NewGame"), TEXT("New game"), X + BoxWidth * 0.5f - ButtonWidth - 8.0f, Y + BoxHeight - 56.0f, ButtonWidth, 40.0f, true, true);
+	DrawButton(Frame, TEXT("ResultsClose"), TEXT("Look at the board  [Esc]"), X + BoxWidth * 0.5f + 8.0f, Y + BoxHeight - 56.0f, ButtonWidth, 40.0f, true, false);
+	Buttons.Add({ TEXT("ResultsWindow"), FVector2D(X, Y), FVector2D(X + BoxWidth, Y + BoxHeight) }); // clicks elsewhere on it do nothing
+}
+
+float AGridlockHUD::DrawResultsColumn(const FDrawFrame& Frame, int32 Player, float X, float Y, float Width)
+{
+	const FBoardState& State = *Frame.State;
+	const FRulesContext& Context = *Frame.Context;
+	const UTuningData& Tuning = *Context.Tuning;
+	const FPlayerData& Data = State.Players[Player];
+	UFont* Small = GEngine->GetSmallFont();
+	UFont* Medium = GEngine->GetMediumFont();
+	const FLinearColor Color = GridlockBoard::PlayerColor(Player);
+	const float Line = 18.0f;
+	float Row = Y;
+	auto Text = [&](const FString& Value, const FLinearColor& TextColor, float Indent = 0.0f)
+	{
+		DrawTextShadowed(Value, TextColor, X + Indent, Row, Small);
+		Row += Line;
+	};
+	auto Heading = [&](const FString& Value)
+	{
+		Row += 6.0f;
+		DrawTextShadowed(Value, GridlockBoard::Clickable, X, Row, Small);
+		Row += Line;
+	};
+	// A label on the left and its number lined up on the right.
+	auto Pair = [&](const FString& Label, const FString& Value, const FLinearColor& TextColor)
+	{
+		DrawTextShadowed(Label, TextColor, X + 10.0f, Row, Small);
+		float ValueWidth = 0.0f;
+		float ValueHeight = 0.0f;
+		GetTextSize(Value, ValueWidth, ValueHeight, Small);
+		DrawTextShadowed(Value, TextColor, X + Width - 10.0f - ValueWidth, Row, Small);
+		Row += Line;
+	};
+
+	DrawTextShadowed(FString::Printf(TEXT("%s   %d points"), *PlayerLabel(Frame, Player), Data.Points), Color, X, Row, Medium);
+	Row += 28.0f;
+
+	// Points, piece by piece (they add up to the total).
+	int32 RoutePoints = 0;
+	int32 Routes = 0;
+	int32 TrainsUsed = 0;
+	for (const TPair<FName, int32>& Entry : State.RouteOwner)
+	{
+		const FRouteDef* Route = Entry.Value == Player ? Context.Map->FindRoute(Entry.Key) : nullptr;
+		if (Route)
+		{
+			RoutePoints += Tuning.GetRoutePoints(Route->Length);
+			TrainsUsed += Route->Length;
+			++Routes;
+		}
+	}
+	int32 Finished = 0;
+	for (const FName CardId : Data.Completed)
+	{
+		const FRouteCardDef* Card = Context.Deck->FindCard(CardId);
+		Finished += Card ? Card->Points : 0;
+	}
+	int32 Missed = 0;
+	for (const FName CardId : Data.Hand)
+	{
+		const FRouteCardDef* Card = Context.Deck->FindCard(CardId);
+		Missed += Card ? Card->Points : 0;
+	}
+	const int32 Longest = URulesLibrary::GetLongestRoute(State, Context, Player);
+	const int32 OtherLongest = URulesLibrary::GetLongestRoute(State, Context, 1 - Player);
+	const bool bBonus = Tuning.LongestRouteBonus > 0 && Longest > 0 && Longest >= OtherLongest;
+	Heading(TEXT("POINTS"));
+	Pair(FString::Printf(TEXT("Routes: %d claimed, %d trains used"), Routes, TrainsUsed), FString::Printf(TEXT("+%d"), RoutePoints), GridlockHUDPrivate::Plain);
+	Pair(FString::Printf(TEXT("Route cards finished: %d"), Data.Completed.Num()), FString::Printf(TEXT("+%d"), Finished), GridlockHUDPrivate::Plain);
+	Pair(FString::Printf(TEXT("Route cards not finished: %d"), Data.Hand.Num()), FString::Printf(TEXT("-%d"), Missed),
+		Data.Hand.IsEmpty() ? GridlockHUDPrivate::Plain : GridlockHUDPrivate::NoticeColor);
+	Pair(FString::Printf(TEXT("Longest route: %d trains%s"), Longest, bBonus ? TEXT(" (the longest)") : TEXT("")),
+		FString::Printf(TEXT("+%d"), bBonus ? Tuning.LongestRouteBonus : 0), GridlockHUDPrivate::Plain);
+	Pair(TEXT("Total"), FString::Printf(TEXT("%d"), Data.Points), Color);
+
+	// Every Route card, finished or not, and any toll its path paid at the end.
+	Heading(FString::Printf(TEXT("ROUTE CARDS (%d)"), Data.Completed.Num() + Data.Hand.Num()));
+	for (const FName CardId : Data.Completed)
+	{
+		const FRouteCardDef* Card = Context.Deck->FindCard(CardId);
+		const int32 Toll = Data.TollsByCard.FindRef(CardId);
+		Pair(FString::Printf(TEXT("done      %s%s"), *GridlockHUDPrivate::CardName(Context, CardId),
+			Toll > 0 ? *FString::Printf(TEXT("   (paid $%d in tolls on the way)"), Toll) : TEXT("")), FString::Printf(TEXT("+%d"), Card ? Card->Points : 0), GridlockHUDPrivate::Plain);
+	}
+	for (const FName CardId : Data.Hand)
+	{
+		const FRouteCardDef* Card = Context.Deck->FindCard(CardId);
+		Pair(FString::Printf(TEXT("missed   %s"), *GridlockHUDPrivate::CardName(Context, CardId)), FString::Printf(TEXT("-%d"), Card ? Card->Points : 0), GridlockHUDPrivate::NoticeColor);
+	}
+
+	// Cities owned and what each earned.
+	if (Tuning.CityPropertyPrice > 0)
+	{
+		TArray<FName> Owned;
+		for (const TPair<FName, int32>& Entry : State.CityOwner)
+		{
+			if (Entry.Value == Player)
+			{
+				Owned.Add(Entry.Key);
+			}
+		}
+		Heading(FString::Printf(TEXT("CITY PROPERTIES (%d)"), Owned.Num()));
+		if (Owned.IsEmpty())
+		{
+			Text(TEXT("none"), GridlockHUDPrivate::Quiet, 10.0f);
+		}
+		for (const FName City : Owned)
+		{
+			Pair(FString::Printf(TEXT("%s (cost $%d)"), *City.ToString(), Tuning.CityPropertyPrice), FString::Printf(TEXT("earned $%d"), Data.TollsByCity.FindRef(City)), GridlockHUDPrivate::Plain);
+		}
+	}
+
+	// Money.
+	if (Tuning.TicketCost > 0 || Tuning.CityPropertyPrice > 0)
+	{
+		Heading(TEXT("MONEY"));
+		const int32 Profit = Data.Earned - Data.Spent;
+		Text(FString::Printf(TEXT("Spent $%d   Earned $%d   Profit %s$%d"), Data.Spent, Data.Earned, Profit < 0 ? TEXT("-") : TEXT(""), FMath::Abs(Profit)),
+			GridlockHUDPrivate::Plain, 10.0f);
+	}
+	return Row - Y;
 }
 
 void AGridlockHUD::DrawCityPopup(const FDrawFrame& Frame)
@@ -776,7 +952,8 @@ void AGridlockHUD::DrawButtons(const FDrawFrame& Frame, float Left, float Top, f
 
 	if (State.Phase == EGridlockPhase::GameOver)
 	{
-		DrawButton(Frame, NewGame, TEXT("New game"), Left, Top, Width, RowHeight, true, true);
+		DrawButton(Frame, NewGame, TEXT("New game"), Left, Top, Half, RowHeight, true, true);
+		DrawButton(Frame, TEXT("ResultsOpen"), TEXT("Results"), Left + Half + Gap, Top, Half, RowHeight, true, false);
 	}
 	else if (!Frame.bHumanTurn)
 	{

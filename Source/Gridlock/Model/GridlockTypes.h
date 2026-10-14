@@ -292,6 +292,14 @@ struct FPlayerData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
 	int32 Earned = 0;
 
+	/** v0.8: tolls this player earned, by city (for the results window). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
+	TMap<FName, int32> TollsByCity;
+
+	/** v0.8: tolls this player paid at the end for a finished Route card's path, by card. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
+	TMap<FName, int32> TollsByCard;
+
 	/** Trains left to place (Ticket to Ride rules); a route uses one per pin. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
 	int32 Trains = 0;

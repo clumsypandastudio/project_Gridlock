@@ -198,8 +198,13 @@ namespace GridlockRulesPrivate
 			return;
 		}
 		Pay(From, Tuning, Amount);
+		if (!CardId.IsNone())
+		{
+			From.TollsByCard.FindOrAdd(CardId) += Amount;
+		}
 		FPlayerData& To = State.Players[Receiver];
 		To.Earned += Amount;
+		To.TollsByCity.FindOrAdd(City) += Amount;
 		To.Cash += Tuning.bUnlimitedCash ? 0 : Amount;
 		AddEvent(Events, EGridlockEventType::CityTollPaid, Payer, City, Amount, CardId);
 	}
