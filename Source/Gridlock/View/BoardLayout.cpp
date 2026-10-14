@@ -68,18 +68,22 @@ namespace GridlockBoard
 		}
 	}
 
-	FVector RouteMidpoint(const FRouteDef& Route, const UMapDefinition& Map, double Z)
+	FVector2D RoutePoint(const FRouteDef& Route, const UMapDefinition& Map, double T)
 	{
 		const FCityDef* A = Map.FindCity(Route.CityA);
 		const FCityDef* B = Map.FindCity(Route.CityB);
 		if (!A || !B)
 		{
-			return FVector::ZeroVector;
+			return FVector2D::ZeroVector;
 		}
-		const FVector2D Middle = Route.bCurved
-			? QuadraticPoint(A->Position, Route.CurveControl, B->Position, 0.5)
-			: (A->Position + B->Position) * 0.5;
-		return ToWorld(Middle, Z);
+		const FVector2D Point = Route.bCurved ? QuadraticPoint(A->Position, Route.CurveControl, B->Position, T) : FMath::Lerp(A->Position, B->Position, T);
+		const FVector2D Along = (B->Position - A->Position).GetSafeNormal();
+		return Point + FVector2D(-Along.Y, Along.X) * Route.SideOffset;
+	}
+
+	FVector RouteMidpoint(const FRouteDef& Route, const UMapDefinition& Map, double Z)
+	{
+		return ToWorld(RoutePoint(Route, Map, 0.5), Z);
 	}
 
 	void SetColor(UMaterialInstanceDynamic* Material, const FLinearColor& Color)

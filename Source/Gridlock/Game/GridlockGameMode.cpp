@@ -94,13 +94,13 @@ void AGridlockGameMode::BeginPlay()
 
 UScenarioDefinition* AGridlockGameMode::MakeFallbackScenario()
 {
-	UE_LOG(LogGridlock, Display, TEXT("No DefaultScenario set: using the built-in Ticket to Ride rules with ticket prices, Lots and city properties (v0.8) on map v0.5"));
+	UE_LOG(LogGridlock, Display, TEXT("No DefaultScenario set: using the built-in Ticket to Ride rules with ticket prices, Lots and city properties (v0.8) on map v0.9 (double routes)"));
 
 	FallbackScenario = NewObject<UScenarioDefinition>(this);
 	FallbackScenario->Title = FText::FromString(TEXT("Built-in v0.8 (Ticket to Ride, buying tickets, Lots, city properties)"));
 
 	UMapDefinition* Map = NewObject<UMapDefinition>(FallbackScenario);
-	Map->FillWithMapV05();
+	Map->FillWithMapV09();
 	URouteCardDeck* Deck = NewObject<URouteCardDeck>(FallbackScenario);
 	Deck->FillWithDeckForMap(*Map);
 

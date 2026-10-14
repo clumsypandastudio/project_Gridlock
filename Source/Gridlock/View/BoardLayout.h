@@ -51,6 +51,9 @@ namespace GridlockBoard
 	GRIDLOCK_API FLinearColor TicketColor(EGridlockColor Color);
 	GRIDLOCK_API FString TicketColorName(EGridlockColor Color);
 
+	/** A point along a route (T = 0 at CityA, 1 at CityB) in map space, shifted to its side for a double route's track. */
+	GRIDLOCK_API FVector2D RoutePoint(const FRouteDef& Route, const UMapDefinition& Map, double T);
+
 	/** A route's midpoint (where its property slot sits), in world space. */
 	GRIDLOCK_API FVector RouteMidpoint(const FRouteDef& Route, const UMapDefinition& Map, double Z = 0.0);
 }

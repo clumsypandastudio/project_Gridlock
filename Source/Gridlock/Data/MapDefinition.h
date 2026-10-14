@@ -56,6 +56,14 @@ struct FRouteDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Route", meta = (EditCondition = "bCurved"))
 	FVector2D CurveControl = FVector2D::ZeroVector;
 
+	/** Double routes (map v0.9): the other track between the same two cities. One player can't claim both. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Route")
+	FName TwinId;
+
+	/** How far (map units) this track is drawn to the side of the straight line between its cities, for double routes. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Route")
+	double SideOffset = 0.0;
+
 	bool Touches(FName City) const { return CityA == City || CityB == City; }
 	FName OtherEnd(FName City) const { return CityA == City ? CityB : CityA; }
 };
@@ -90,6 +98,10 @@ public:
 	/** Map v0.5: map v0.3 recolored for the 8 Ticket to Ride colors, about 15 pins of each (west and east halves differ). */
 	UFUNCTION(CallInEditor, Category = "Map")
 	void FillWithMapV05();
+
+	/** Map v0.9: map v0.5 with 8 double routes (out of each start city, and into each bridge town), each second track in its own color. */
+	UFUNCTION(CallInEditor, Category = "Map")
+	void FillWithMapV09();
 
 	/** Logs every problem from GetProblems. */
 	UFUNCTION(CallInEditor, Category = "Map")

@@ -54,7 +54,16 @@ TArray<FString> UMapDefinition::GetProblems() const
 		const FString A = Route.CityA.ToString();
 		const FString B = Route.CityB.ToString();
 		const FString Pair = A < B ? A + TEXT("|") + B : B + TEXT("|") + A;
-		if (CityPairs.Contains(Pair))
+		if (!Route.TwinId.IsNone())
+		{
+			// A double route's two tracks share their cities; each must name the other.
+			const FRouteDef* Twin = FindRoute(Route.TwinId);
+			if (!Twin || Twin->TwinId != Route.Id || !Twin->Touches(Route.CityA) || !Twin->Touches(Route.CityB))
+			{
+				Problems.Add(FString::Printf(TEXT("Route %s has a twin that doesn't match"), *Route.Id.ToString()));
+			}
+		}
+		else if (CityPairs.Contains(Pair))
 		{
 			Problems.Add(FString::Printf(TEXT("Route %s duplicates another route between the same cities"), *Route.Id.ToString()));
 		}
@@ -207,6 +216,39 @@ void UMapDefinition::FillWithMapV05()
 		{
 			Route.Color = *Color;
 		}
+	}
+	MarkPackageDirty();
+}
+
+void UMapDefinition::FillWithMapV09()
+{
+	FillWithMapV05();
+	using C = EGridlockColor;
+	// Out of each start city, across the middle, and into the north and south bridge towns, mirrored east and west.
+	// The second track takes a different color; the 8 of them use each color once.
+	struct FDouble
+	{
+		const TCHAR* Of;
+		EGridlockColor Color;
+	};
+	const FDouble Doubles[] = {
+		{ TEXT("R03"), C::Blue },   { TEXT("R11"), C::Red },    { TEXT("R10"), C::Orange }, { TEXT("R13"), C::Green },
+		{ TEXT("R19"), C::White },  { TEXT("R27"), C::Purple }, { TEXT("R26"), C::Yellow }, { TEXT("R29"), C::Black } };
+	for (const FDouble& Double : Doubles)
+	{
+		FRouteDef* First = Routes.FindByPredicate([&Double](const FRouteDef& Route) { return Route.Id == FName(Double.Of); });
+		if (!First)
+		{
+			continue;
+		}
+		FRouteDef Second = *First;
+		Second.Id = FName(*(First->Id.ToString() + TEXT("B")));
+		Second.Color = Double.Color;
+		Second.TwinId = First->Id;
+		Second.SideOffset = 8.0;
+		First->TwinId = Second.Id;
+		First->SideOffset = -8.0;
+		Routes.Add(Second);
 	}
 	MarkPackageDirty();
 }

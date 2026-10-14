@@ -31,12 +31,10 @@ void ARouteActor::Setup(const FRouteDef& Route, const UMapDefinition& Map)
 	{
 		return;
 	}
-	const FVector2D A = CityA->Position;
-	const FVector2D B = CityB->Position;
 
-	auto PointAt = [&Route, A, B](double T)
+	auto PointAt = [&Route, &Map](double T)
 	{
-		return Route.bCurved ? GridlockBoard::QuadraticPoint(A, Route.CurveControl, B, T) : FMath::Lerp(A, B, T);
+		return GridlockBoard::RoutePoint(Route, Map, T); // to one side for a double route's track
 	};
 
 	// The polyline, with its ends pulled back so the line stops at the city's edge.

@@ -600,8 +600,7 @@ void AGridlockHUD::DrawRouteLots(const FDrawFrame& Frame)
 		{
 			// 1 slot in the middle; 2 or 3 spread around it.
 			const double T = Slots == 1 ? 0.5 : 0.5 + (Index - (Slots - 1) * 0.5) * (Slots == 2 ? 0.3 : 0.2);
-			const FVector2D At = Route.bCurved ? GridlockBoard::QuadraticPoint(A->Position, Route.CurveControl, B->Position, T)
-				: FMath::Lerp(A->Position, B->Position, T);
+			const FVector2D At = GridlockBoard::RoutePoint(Route, *Context.Map, T);
 			const FVector Screen = Project(GridlockBoard::ToWorld(At, 12.0));
 			const float Size = 13.0f;
 			const bool bOwned = Lots && Lots->Owners.IsValidIndex(Index);
@@ -1312,8 +1311,8 @@ TArray<FString> AGridlockHUD::DescribeHover(const FDrawFrame& Frame, FName Route
 		return Lines;
 	}
 
-	Lines.Add(FString::Printf(TEXT("%s   (%s, %d dot%s)"), *RouteName(Context, RouteId), *GridlockBoard::TicketColorName(Route->Color),
-		Route->Length, Route->Length == 1 ? TEXT("") : TEXT("s")));
+	Lines.Add(FString::Printf(TEXT("%s   (%s, %d pin%s)%s"), *RouteName(Context, RouteId), *GridlockBoard::TicketColorName(Route->Color),
+		Route->Length, Route->Length == 1 ? TEXT("") : TEXT("s"), Route->TwinId.IsNone() ? TEXT("") : TEXT("   one of two tracks")));
 
 	// What claiming it takes, against the tickets you hold.
 	if (Context.Tuning->bCardEconomy && State.RouteOwner.FindRef(RouteId) == INDEX_NONE && State.Players.IsValidIndex(Frame.Human))
@@ -1505,6 +1504,7 @@ void AGridlockHUD::DrawHelp(const FDrawFrame& Frame)
 				Tuning.CityPropertyPrice) : FString(), false },
 			{ Tuning.CityPropertyPrice > 0 ? FString::Printf(TEXT("The other player pays $%d each time they build a route into it, and again at the end for each finished Route card whose path visits it."),
 				Tuning.CityToll) : FString(), false },
+			{ TEXT("Some routes have two tracks side by side: each player can take one of them, never both."), false },
 			{ TEXT("THE END"), true },
 			{ FString::Printf(TEXT("Each player has %d trains, one per pin. When someone ends a turn with %d or fewer, everyone gets one last turn."),
 				Tuning.TrainsPerPlayer, Tuning.FinalRoundTrains), false },

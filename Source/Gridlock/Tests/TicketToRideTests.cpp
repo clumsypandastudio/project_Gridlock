@@ -17,11 +17,18 @@ namespace GridlockTicketToRideTests
 		FRulesContext Context;
 		UTuningData* Tuning = nullptr;
 
-		/** Rules v0.5, v0.6 (tickets cost money), v0.7 (and Lots) or v0.8 (and city properties). */
+		/** Rules v0.5, v0.6 (tickets cost money), v0.7 (and Lots), v0.8 (and city properties), or 9: v0.8 on map v0.9 (double routes). */
 		explicit FFixture(int32 Version = 5)
 		{
 			UMapDefinition* Map = NewObject<UMapDefinition>();
-			Map->FillWithMapV05();
+			if (Version >= 9)
+			{
+				Map->FillWithMapV09();
+			}
+			else
+			{
+				Map->FillWithMapV05();
+			}
 			URouteCardDeck* Deck = NewObject<URouteCardDeck>();
 			Deck->FillWithDeckForMap(*Map);
 			Tuning = NewObject<UTuningData>();
@@ -752,13 +759,48 @@ bool FGridlockTtRCityPropertiesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGridlockTtRDoubleRoutesTest, "Gridlock.TicketToRide.DoubleRoutes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FGridlockTtRDoubleRoutesTest::RunTest(const FString& Parameters)
+{
+	using FFixture = GridlockTicketToRideTests::FFixture;
+	const FFixture Fixture(9);
+	for (const FString& Problem : Fixture.Context.Map->GetProblems())
+	{
+		AddError(Problem);
+	}
+	int32 Doubles = 0;
+	for (const FRouteDef& Route : Fixture.Context.Map->Routes)
+	{
+		Doubles += Route.TwinId.IsNone() ? 0 : 1;
+	}
+	TestEqual(TEXT("8 double routes (16 tracks)"), Doubles, 16);
+	TestEqual(TEXT("38 routes in all"), Fixture.Context.Map->Routes.Num(), 38);
+	const FRouteDef* First = Fixture.Context.Map->FindRoute(TEXT("R03"));
+	const FRouteDef* Second = Fixture.Context.Map->FindRoute(TEXT("R03B"));
+	TestTrue(TEXT("Westport - Ironford has two tracks of different colors"), First && Second && First->Color != Second->Color && First->Length == Second->Length);
+
+	// Each player can take one track of a double route, never both.
+	FBoardState State = Fixture.StartGame(51);
+	const int32 Me = State.ActivePlayer;
+	State.Players[Me].Tickets[static_cast<int32>(EGridlockColor::Wild)] = 20;
+	TestTrue(TEXT("Claim one track"), Fixture.Do(State, EGridlockActionType::ClaimRoute, TEXT("R03")));
+	State.ActivePlayer = Me;
+	TestFalse(TEXT("Not the other track too"), Fixture.IsLegal(State, FFixture::Make(EGridlockActionType::ClaimRoute, Me, TEXT("R03B"))));
+	State.ActivePlayer = 1 - Me;
+	State.Players[1 - Me].Tickets[static_cast<int32>(EGridlockColor::Wild)] = 20;
+	TestTrue(TEXT("The opponent can take the other track"), Fixture.IsLegal(State, FFixture::Make(EGridlockActionType::ClaimRoute, 1 - Me, TEXT("R03B"))));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGridlockTtRCityPlayoutTest, "Gridlock.TicketToRide.CityPropertiesPlayouts",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FGridlockTtRCityPlayoutTest::RunTest(const FString& Parameters)
 {
 	using FFixture = GridlockTicketToRideTests::FFixture;
-	const FFixture Fixture(8);
+	const FFixture Fixture(9); // the game's own rules and map
 	UAIPersonality* Builder = NewObject<UAIPersonality>();
 	Builder->ApplyPreset(EAIStyle::Builder, EAIDifficulty::Normal);
 

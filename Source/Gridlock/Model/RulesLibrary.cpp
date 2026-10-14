@@ -1140,6 +1140,11 @@ bool URulesLibrary::IsLegal(const FBoardState& State, const FGameAction& Action,
 			OutReason = LOCTEXT("AlreadyClaimed", "That route is already claimed.");
 			return false;
 		}
+		if (!Route->TwinId.IsNone() && State.RouteOwner.FindRef(Route->TwinId) == Action.Player)
+		{
+			OutReason = LOCTEXT("BothTracks", "You already have the other track of this double route: each player can take only one.");
+			return false;
+		}
 		const TSet<FName> Network = Tuning.bRoutesMustConnect ? GetNetworkCities(State, Context, Action.Player) : TSet<FName>();
 		if (Tuning.bRoutesMustConnect && !Network.Contains(Route->CityA) && !Network.Contains(Route->CityB))
 		{
