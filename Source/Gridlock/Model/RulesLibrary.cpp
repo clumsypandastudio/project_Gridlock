@@ -169,10 +169,14 @@ namespace GridlockRulesPrivate
 		}
 	}
 
-	/** Pays a price: it always counts toward Spent, and comes out of Cash unless cash is unlimited. */
-	void Pay(FPlayerData& Player, const UTuningData& Tuning, int32 Amount)
+	/**
+	 * Pays a price: it always counts toward Spent and the category it was spent on (Bucket, e.g.
+	 * &FPlayerData::SpentOnTickets), and comes out of Cash unless cash is unlimited.
+	 */
+	void Pay(FPlayerData& Player, const UTuningData& Tuning, int32 Amount, int32 FPlayerData::* Bucket)
 	{
 		Player.Spent += Amount;
+		Player.*Bucket += Amount;
 		if (!Tuning.bUnlimitedCash)
 		{
 			Player.Cash -= Amount;
@@ -197,7 +201,7 @@ namespace GridlockRulesPrivate
 		{
 			return;
 		}
-		Pay(From, Tuning, Amount);
+		Pay(From, Tuning, Amount, &FPlayerData::TollsPaid);
 		if (!CardId.IsNone())
 		{
 			From.TollsByCard.FindOrAdd(CardId) += Amount;
@@ -1413,7 +1417,7 @@ FBoardState URulesLibrary::Apply(const FBoardState& State, const FGameAction& Ac
 		if (GridlockRulesPrivate::DrawFrom(Next, Next.TicketDeck, Next.TicketDiscard, 0, OutEvents, Color))
 		{
 			FPlayerData& Me = Next.Players[Player];
-			GridlockRulesPrivate::Pay(Me, Tuning, Tuning.TicketCost);
+			GridlockRulesPrivate::Pay(Me, Tuning, Tuning.TicketCost, &FPlayerData::SpentOnTickets);
 			++Me.Tickets[static_cast<int32>(Color)];
 			Next.ActionsThisTurn += Next.BuysThisTurn == 0 ? 1 : 0;
 			++Next.BuysThisTurn;
@@ -1443,7 +1447,8 @@ FBoardState URulesLibrary::Apply(const FBoardState& State, const FGameAction& Ac
 	case EGridlockActionType::TakeFaceUp:
 	{
 		const EGridlockColor Color = Next.FaceUp[Action.Slot];
-		GridlockRulesPrivate::Pay(Next.Players[Player], Tuning, Tuning.GetFaceUpPrice(Color));
+		GridlockRulesPrivate::Pay(Next.Players[Player], Tuning, Tuning.GetFaceUpPrice(Color),
+			Color == EGridlockColor::Lot ? &FPlayerData::SpentOnLots : &FPlayerData::SpentOnTickets);
 		++Next.Players[Player].Tickets[static_cast<int32>(Color)];
 		Next.ActionsThisTurn += Next.BuysThisTurn == 0 ? 1 : 0;
 		++Next.BuysThisTurn;
@@ -1479,7 +1484,7 @@ FBoardState URulesLibrary::Apply(const FBoardState& State, const FGameAction& Ac
 
 	case EGridlockActionType::BuyCityProperty:
 	{
-		GridlockRulesPrivate::Pay(Next.Players[Player], Tuning, Tuning.CityPropertyPrice);
+		GridlockRulesPrivate::Pay(Next.Players[Player], Tuning, Tuning.CityPropertyPrice, &FPlayerData::SpentOnProperties);
 		Next.CityOwner.Add(Action.RouteId, Player);
 		GridlockRulesPrivate::AddEvent(OutEvents, EGridlockEventType::CityPropertyBought, Player, Action.RouteId, Tuning.CityPropertyPrice);
 		GridlockRulesPrivate::ScoreAndAdvance(Next, Context, OutEvents); // buying is the turn
@@ -1490,7 +1495,7 @@ FBoardState URulesLibrary::Apply(const FBoardState& State, const FGameAction& Ac
 	{
 		FPlayerData& Me = Next.Players[Player];
 		const int32 Rest = FMath::Max(0, Tuning.RouteLotPrice - Tuning.TicketCost);
-		GridlockRulesPrivate::Pay(Me, Tuning, Rest);
+		GridlockRulesPrivate::Pay(Me, Tuning, Rest, &FPlayerData::SpentOnLots);
 		Me.bLotPending = false;
 		GridlockRulesPrivate::AddEvent(OutEvents, EGridlockEventType::LotKept, Player, NAME_None, Rest);
 		EndTurnIfTicketsDone();

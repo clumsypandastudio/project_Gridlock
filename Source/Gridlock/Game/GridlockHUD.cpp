@@ -483,10 +483,13 @@ float AGridlockHUD::DrawResultsColumn(const FDrawFrame& Frame, int32 Player, flo
 	// Money.
 	if (Tuning.TicketCost > 0 || Tuning.CityPropertyPrice > 0)
 	{
+		// Where the money went, and what came back: net = tolls earned - everything spent.
 		Heading(TEXT("MONEY"));
-		const int32 Profit = Data.Earned - Data.Spent;
-		Text(FString::Printf(TEXT("Spent $%d   Earned $%d   Profit %s$%d"), Data.Spent, Data.Earned, Profit < 0 ? TEXT("-") : TEXT(""), FMath::Abs(Profit)),
-			GridlockHUDPrivate::Plain, 10.0f);
+		Text(FString::Printf(TEXT("Spent: tickets $%d,  Lots $%d,  properties $%d,  tolls paid $%d"),
+			Data.SpentOnTickets, Data.SpentOnLots, Data.SpentOnProperties, Data.TollsPaid), GridlockHUDPrivate::Plain, 10.0f);
+		Pair(FString::Printf(TEXT("Spent in all $%d,  tolls earned"), Data.Spent), FString::Printf(TEXT("+$%d"), Data.Earned), GridlockHUDPrivate::Plain);
+		const int32 Net = Data.Earned - Data.Spent;
+		Pair(TEXT("Net (tolls earned - everything spent)"), FString::Printf(TEXT("%s$%d"), Net < 0 ? TEXT("-") : TEXT("+"), FMath::Abs(Net)), Color);
 	}
 	return Row - Y;
 }
@@ -830,7 +833,7 @@ void AGridlockHUD::DrawPanel(const FDrawFrame& Frame)
 			// Ticket to Ride: points, trains, and how many cards each holds (the cards themselves stay secret).
 			const FString Money = Context.Tuning->TicketCost <= 0 ? FString()
 				: Context.Tuning->bUnlimitedCash && Context.Tuning->CityPropertyPrice > 0
-				? FString::Printf(TEXT("   spent $%d  earned $%d  profit %s$%d"), Data.Spent, Data.Earned, Data.Earned >= Data.Spent ? TEXT("") : TEXT("-"), FMath::Abs(Data.Earned - Data.Spent))
+				? FString::Printf(TEXT("   spent $%d   tolls +$%d   net %s$%d"), Data.Spent, Data.Earned, Data.Earned >= Data.Spent ? TEXT("+") : TEXT("-"), FMath::Abs(Data.Earned - Data.Spent))
 				: Context.Tuning->bUnlimitedCash ? FString::Printf(TEXT("   spent $%d"), Data.Spent)
 				: FString::Printf(TEXT("   $%d"), Data.Cash);
 			DrawTextShadowed(FString::Printf(TEXT("%s%s   %d pts%s   %d trains   %d tickets   %d Route cards%s"), State.ActivePlayer == Player ? TEXT("> ") : TEXT("   "),

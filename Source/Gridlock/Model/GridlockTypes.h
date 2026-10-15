@@ -288,7 +288,20 @@ struct FPlayerData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
 	int32 Spent = 0;
 
-	/** Everything this player has been paid (tolls); Earned - Spent is their profit. */
+	/** What Spent went on (v0.8, for the results window): tickets, Lots, city properties, and tolls paid to the opponent. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
+	int32 SpentOnTickets = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
+	int32 SpentOnLots = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
+	int32 SpentOnProperties = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
+	int32 TollsPaid = 0;
+
+	/** Everything this player has been paid (tolls); Earned - Spent is their net. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gridlock")
 	int32 Earned = 0;
 
